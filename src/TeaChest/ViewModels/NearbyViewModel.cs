@@ -64,6 +64,7 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
 
     private readonly MainViewModel _main;
     private readonly Dispatcher _dispatcher;
+    private readonly IDialogService _dialogs;
     private readonly DispatcherTimer _idleTimer;
     private readonly DispatcherTimer _pruneTimer;
     private readonly DispatcherTimer _networkTimer;
@@ -89,12 +90,14 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
     private string _diffSource = "";
     private string _diffSummary = "";
     private DiffBucket? _selectedBucket;
+    private NearbyDevice? _selectedDevice;
     private List<AppItem> _missingHere = new();
 
-    public NearbyViewModel(MainViewModel main, Dispatcher dispatcher)
+    public NearbyViewModel(MainViewModel main, Dispatcher dispatcher, IDialogService dialogs)
     {
         _main = main;
         _dispatcher = dispatcher;
+        _dialogs = dialogs;
         _idleTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = IdleShareTimeout };
         _idleTimer.Tick += (_, _) =>
         {
@@ -106,7 +109,27 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
         // Re-checked while sharing so the warning clears as soon as the network is switched to Private.
         _networkTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher) { Interval = TimeSpan.FromSeconds(5) };
         _networkTimer.Tick += (_, _) => RefreshNetworkWarning();
+
+        // Async lambdas on purpose, like MainViewModel's: these were async void click handlers, and
+        // AsyncRelayCommand would grey Connect for the whole connection, which the redesign can decide.
+        ShareCommand = new RelayCommand(async () => await ToggleSharingAsync());
+        ConfirmPairingCommand = new RelayCommand(() => AnswerPairing(true));
+        RejectPairingCommand = new RelayCommand(() => AnswerPairing(false));
+        ConnectCommand = new RelayCommand(async () => await ConnectSelectedAsync());
+        ConnectManualCommand = new RelayCommand(async () => await ConnectManualAsync());
+        CancelConnectCommand = new RelayCommand(CancelConnect);
+        OpenNetworkSettingsCommand = new RelayCommand(OpenNetworkSettings);
+        UseMissingCommand = new RelayCommand(UseMissingWithConfirm);
     }
+
+    public RelayCommand ShareCommand { get; }
+    public RelayCommand ConfirmPairingCommand { get; }
+    public RelayCommand RejectPairingCommand { get; }
+    public RelayCommand ConnectCommand { get; }
+    public RelayCommand ConnectManualCommand { get; }
+    public RelayCommand CancelConnectCommand { get; }
+    public RelayCommand OpenNetworkSettingsCommand { get; }
+    public RelayCommand UseMissingCommand { get; }
 
     public ObservableCollection<NearbyDevice> Devices { get; } = new();
     public ObservableCollection<DiffBucket> Buckets { get; } = new();
@@ -224,6 +247,13 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
     {
         get => _selectedBucket;
         set => SetField(ref _selectedBucket, value);
+    }
+
+    /// <summary>The device picked in the list, which Connect and compare uses.</summary>
+    public NearbyDevice? SelectedDevice
+    {
+        get => _selectedDevice;
+        set => SetField(ref _selectedDevice, value);
     }
 
     public string LocalAddresses
@@ -448,6 +478,13 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
 
     public Task ConnectAsync(NearbyDevice device) => ConnectAsync(device.Endpoint, device.Name);
 
+    /// <summary>Connects to the picked device, or to the only one there is when nothing is picked.</summary>
+    public async Task ConnectSelectedAsync()
+    {
+        if (SelectedDevice is { } device) await ConnectAsync(device);
+        else if (Devices.Count == 1) await ConnectAsync(Devices[0]);
+    }
+
     public Task ConnectManualAsync()
     {
         string text = ManualAddress.Trim();
@@ -545,6 +582,29 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
         if (!_main.LoadItems(_missingHere.Select(a => a.Clone()), DiffSource)) return false;
         InstallListReady?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    public void UseMissingWithConfirm()
+        => UseMissingFlow(_dialogs, _main.IsBusy, _main.Apps.Count > 0, () => UseMissingAsInstallList());
+
+    /// <summary>Asks before the missing apps replace a list that is already there. Returns whether they were used.</summary>
+    internal static bool UseMissingFlow(IDialogService dialogs, bool isBusy, bool hasApps, Func<bool> useMissing)
+    {
+        if (isBusy)
+        {
+            dialogs.Show("Wait for the current operation to finish first.", "TeaChest", DialogIcon.Information);
+            return false;
+        }
+        if (hasApps)
+        {
+            bool replace = dialogs.Confirm(
+                "This replaces the current app list with the apps missing on this PC. Save a manifest first if you need the current list.\n\nContinue?",
+                "Use missing apps",
+                ConfirmButtons.OkCancel,
+                DialogIcon.Question);
+            if (!replace) return false;
+        }
+        return useMissing();
     }
 
     public async Task ShutdownAsync()

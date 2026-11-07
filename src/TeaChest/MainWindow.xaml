@@ -126,13 +126,13 @@
                                     Content="Open..."
                                     Margin="0,0,8,0"
                                     IsEnabled="{Binding CanEdit}"
-                                    Click="OpenButton_Click" />
+                                    Command="{Binding OpenCommand}" />
                             <Button x:Name="SaveButton"
                                     Style="{StaticResource SecondaryButton}"
                                     Content="Save manifest"
                                     Margin="0,0,8,0"
                                     IsEnabled="{Binding CanEdit}"
-                                    Click="SaveButton_Click" />
+                                    Command="{Binding SaveCommand}" />
                             <Button x:Name="ScanButton"
                                     Style="{StaticResource PrimaryButton}"
                                     Content="Scan this PC"
@@ -196,126 +196,226 @@
                         </StackPanel>
                     </Grid>
 
-                    <Border Grid.Row="3" Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <ListBox Style="{StaticResource FilterListBox}"
-                                     ItemsSource="{Binding Filters}"
-                                     SelectedItem="{Binding SelectedFilter, Mode=TwoWay}"
-                                     DisplayMemberPath="Label"
-                                     Margin="9,2,16,0">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource FilterItem}">
-                                        <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVis}}" />
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                                <ListBox.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <WrapPanel Orientation="Horizontal" />
-                                    </ItemsPanelTemplate>
-                                </ListBox.ItemsPanel>
-                            </ListBox>
-                            <DataGrid x:Name="AppsGrid"
-                                      Grid.Row="1"
-                                      ItemsSource="{Binding AppsView}"
-                                      IsEnabled="True"
-                                      SelectionMode="Single"
-                                      MouseDoubleClick="AppsGrid_MouseDoubleClick">
-                                <DataGrid.Columns>
-                                    <DataGridTemplateColumn Width="46" CanUserSort="False">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <CheckBox HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"
-                                                          IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                          IsEnabled="{Binding DataContext.CanEdit, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="App" Width="5*" MinWidth="200" SortMemberPath="Name">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <StackPanel VerticalAlignment="Center">
-                                                    <DockPanel>
-                                                        <Border DockPanel.Dock="Left"
-                                                                Background="Transparent"
-                                                                Padding="0,0,7,0"
-                                                                VerticalAlignment="Center"
-                                                                ToolTip="Loose name match. Worth a quick check."
-                                                                Visibility="{Binding IsLooseMatch, Converter={StaticResource BoolToVis}}">
-                                                            <Ellipse Width="7" Height="7" Fill="{DynamicResource Warning}" />
-                                                        </Border>
-                                                        <TextBlock Text="{Binding Name}"
-                                                                   FontWeight="SemiBold"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   ToolTip="{Binding Name}" />
-                                                    </DockPanel>
-                                                    <TextBlock Text="{Binding Publisher}"
-                                                               Style="{StaticResource RowSubtext}" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTemplateColumn Header="Type" Width="92" SortMemberPath="TypeLabel">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Ellipse Width="7" Height="7" VerticalAlignment="Center">
-                                                        <Ellipse.Style>
-                                                            <Style TargetType="Ellipse">
-                                                                <Setter Property="Fill" Value="{DynamicResource TextMuted}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding TypeLabel}" Value="WinGet">
-                                                                        <Setter Property="Fill" Value="{DynamicResource Accent}" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding TypeLabel}" Value="Manual">
-                                                                        <Setter Property="Fill" Value="{DynamicResource Warning}" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Ellipse.Style>
-                                                    </Ellipse>
-                                                    <TextBlock Text="{Binding TypeLabel}"
-                                                               Foreground="{DynamicResource TextSecondary}"
-                                                               Margin="7,0,0,0"
-                                                               VerticalAlignment="Center" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="118" IsReadOnly="True" SortMemberPath="Category" ElementStyle="{StaticResource GridCellText}" />
-                                    <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="100" IsReadOnly="True" SortMemberPath="Version" ElementStyle="{StaticResource GridCellText}" />
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="4*" MinWidth="170" IsReadOnly="True" SortMemberPath="Id" ElementStyle="{StaticResource GridCellMono}" />
-                                    <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="4*" MinWidth="90" IsReadOnly="True" SortMemberPath="Notes" ElementStyle="{StaticResource GridCellText}" />
-                                </DataGrid.Columns>
-                            </DataGrid>
+                    <Grid Grid.Row="3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Border Style="{StaticResource Card}" Padding="0" ClipToBounds="True">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <ListBox Style="{StaticResource FilterListBox}"
+                                         ItemsSource="{Binding Filters}"
+                                         SelectedItem="{Binding SelectedFilter, Mode=TwoWay}"
+                                         DisplayMemberPath="Label"
+                                         Margin="9,2,16,0">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource FilterItem}">
+                                            <Setter Property="Visibility" Value="{Binding IsVisible, Converter={StaticResource BoolToVis}}" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                </ListBox>
+                                <DataGrid x:Name="AppsGrid"
+                                          Grid.Row="1"
+                                          ItemsSource="{Binding AppsView}"
+                                          IsEnabled="True"
+                                          SelectionMode="Single"
+                                          SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
+                                          MouseDoubleClick="AppsGrid_MouseDoubleClick">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Width="46" CanUserSort="False">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                              IsEnabled="{Binding DataContext.CanEdit, RelativeSource={RelativeSource AncestorType=DataGrid}}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="App" Width="5*" MinWidth="200" SortMemberPath="Name">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <DockPanel>
+                                                            <Border DockPanel.Dock="Left"
+                                                                    Background="Transparent"
+                                                                    Padding="0,0,7,0"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="Loose name match. Worth a quick check."
+                                                                    Visibility="{Binding IsLooseMatch, Converter={StaticResource BoolToVis}}">
+                                                                <Ellipse Width="7" Height="7" Fill="{DynamicResource Warning}" />
+                                                            </Border>
+                                                            <TextBlock Text="{Binding Name}"
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"
+                                                                       ToolTip="{Binding Name}" />
+                                                        </DockPanel>
+                                                        <TextBlock Text="{Binding Publisher}"
+                                                                   Style="{StaticResource RowSubtext}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Type" Width="92" SortMemberPath="TypeLabel">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center">
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="Ellipse">
+                                                                    <Setter Property="Fill" Value="{DynamicResource TextMuted}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding TypeLabel}" Value="WinGet">
+                                                                            <Setter Property="Fill" Value="{DynamicResource Accent}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding TypeLabel}" Value="Manual">
+                                                                            <Setter Property="Fill" Value="{DynamicResource Warning}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+                                                        <TextBlock Text="{Binding TypeLabel}"
+                                                                   Foreground="{DynamicResource TextSecondary}"
+                                                                   Margin="7,0,0,0"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTextColumn x:Name="AppsCategoryColumn" Header="Category" Binding="{Binding Category}" Width="118" IsReadOnly="True" SortMemberPath="Category" ElementStyle="{StaticResource GridCellText}" />
+                                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="100" IsReadOnly="True" SortMemberPath="Version" ElementStyle="{StaticResource GridCellText}" />
+                                        <DataGridTextColumn x:Name="AppsIdColumn" Header="ID" Binding="{Binding Id}" Width="4*" MinWidth="170" IsReadOnly="True" SortMemberPath="Id" ElementStyle="{StaticResource GridCellMono}" />
+                                        <DataGridTextColumn x:Name="AppsNotesColumn" Header="Notes" Binding="{Binding Notes}" Width="4*" MinWidth="90" IsReadOnly="True" SortMemberPath="Notes" ElementStyle="{StaticResource GridCellText}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
 
-                            <StackPanel Grid.Row="1"
-                                        HorizontalAlignment="Center" VerticalAlignment="Center"
-                                        Visibility="{Binding HasApps, Converter={StaticResource InverseBoolToVis}}">
-                                <Image Width="72" Height="72"
-                                       Source="Assets/TeaChest.png"
-                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                       HorizontalAlignment="Center" />
-                                <TextBlock Text="Nothing in the chest yet"
-                                           Style="{StaticResource H2}"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,14,0,0" />
-                                <TextBlock Text="Scan this PC to see what's installed, or open a manifest you saved earlier."
+                                <StackPanel Grid.Row="1"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            Visibility="{Binding HasApps, Converter={StaticResource InverseBoolToVis}}">
+                                    <Image Width="72" Height="72"
+                                           Source="Assets/TeaChest.png"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           HorizontalAlignment="Center" />
+                                    <TextBlock Text="Nothing in the chest yet"
+                                               Style="{StaticResource H2}"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,14,0,0" />
+                                    <TextBlock Text="Scan this PC to see what's installed, or open a manifest you saved earlier."
+                                               Style="{StaticResource Subtle}"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,6,0,0" />
+                                    <Button Content="Scan this PC"
+                                            Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding ScanCommand}"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,16,0,0" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Details panel: opened by double-clicking a row, then follows the selection. -->
+                        <Border Grid.Column="1"
+                                Style="{StaticResource Card}"
+                                Width="320"
+                                Margin="16,0,0,0"
+                                Padding="0"
+                                Visibility="{Binding IsDetailsOpen, Converter={StaticResource BoolToVis}}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+                                <Grid Margin="18,14,8,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Details" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                    <Button Grid.Column="1"
+                                            Style="{StaticResource IconButton}"
+                                            Content="&#xE711;"
+                                            FontSize="12"
+                                            ToolTip="Close details"
+                                            AutomationProperties.Name="Close details"
+                                            Command="{Binding CloseDetailsCommand}" />
+                                </Grid>
+
+                                <TextBlock Grid.Row="1"
+                                           Text="Pick an app in the list to see its details here."
                                            Style="{StaticResource Subtle}"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,6,0,0" />
-                                <Button Content="Scan this PC"
-                                        Style="{StaticResource PrimaryButton}"
-                                        Command="{Binding ScanCommand}"
-                                        HorizontalAlignment="Center"
-                                        Margin="0,16,0,0" />
-                            </StackPanel>
-                        </Grid>
-                    </Border>
+                                           TextWrapping="Wrap"
+                                           Margin="18,8,18,18"
+                                           Visibility="{Binding HasSelectedApp, Converter={StaticResource InverseBoolToVis}}" />
+
+                                <ScrollViewer Grid.Row="1"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Visibility="{Binding HasSelectedApp, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel Margin="18,4,18,18">
+                                        <TextBlock Text="{Binding SelectedApp.Name}"
+                                                   FontSize="17"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{Binding SelectedDetails}" Margin="0,4,0,0" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Margin="0,12,0,0">
+                                                        <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" />
+                                                        <TextBlock Text="{Binding Value}"
+                                                                   TextWrapping="Wrap"
+                                                                   FontSize="13.5"
+                                                                   Margin="0,3,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimary}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsMono}" Value="True">
+                                                                            <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <StackPanel Margin="0,18,0,0">
+                                            <Button Style="{StaticResource SecondaryButton}"
+                                                    Content="Open in the Microsoft Store"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="0,0,0,8"
+                                                    Command="{Binding OpenStoreCommand}"
+                                                    Visibility="{Binding HasStoreLink, Converter={StaticResource BoolToVis}}" />
+                                            <Button Style="{StaticResource SecondaryButton}"
+                                                    Content="See it on winget.run"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="0,0,0,8"
+                                                    Command="{Binding OpenWingetCommand}"
+                                                    Visibility="{Binding HasWingetLink, Converter={StaticResource BoolToVis}}" />
+                                            <Button Style="{StaticResource SecondaryButton}"
+                                                    Content="Open the install folder"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="0,0,0,8"
+                                                    Command="{Binding OpenFolderCommand}"
+                                                    Visibility="{Binding HasInstallFolder, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <!-- Install view -->
@@ -344,25 +444,25 @@
                                     Content="Load manifest..."
                                     Margin="0,0,8,0"
                                     IsEnabled="{Binding CanEdit}"
-                                    Click="LoadButton_Click" />
+                                    Command="{Binding LoadCommand}" />
                             <Button x:Name="PreviewButton"
                                     Style="{StaticResource SecondaryButton}"
                                     Content="Preview plan"
                                     Margin="0,0,8,0"
                                     IsEnabled="{Binding CanEdit}"
-                                    Click="PreviewButton_Click" />
+                                    Command="{Binding PreviewCommand}" />
                             <Button x:Name="RetryButton"
                                     Style="{StaticResource SecondaryButton}"
                                     Content="{Binding RetryLabel}"
                                     Margin="0,0,8,0"
                                     IsEnabled="{Binding CanRetry}"
                                     Visibility="{Binding CanRetry, Converter={StaticResource BoolToVis}}"
-                                    Click="RetryButton_Click" />
+                                    Command="{Binding RetryCommand}" />
                             <Button x:Name="InstallButton"
                                     Style="{StaticResource PrimaryButton}"
                                     Content="Install selected"
                                     IsEnabled="{Binding CanInstall}"
-                                    Click="InstallButton_Click" />
+                                    Command="{Binding InstallCommand}" />
                         </StackPanel>
                     </Grid>
 
@@ -510,7 +610,7 @@
                                             Style="{StaticResource SecondaryButton}"
                                             HorizontalAlignment="Center"
                                             Margin="0,14,0,0"
-                                            Click="PreviewButton_Click" />
+                                            Command="{Binding PreviewCommand}" />
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -561,7 +661,7 @@
                                 Style="{StaticResource PrimaryButton}"
                                 Content="{Binding ShareButtonText}"
                                 VerticalAlignment="Center"
-                                Click="ShareButton_Click" />
+                                Command="{Binding ShareCommand}" />
                     </Grid>
 
                     <!-- Incoming pairing request (shown on the sharing PC) -->
@@ -590,8 +690,8 @@
                                        VerticalAlignment="Center"
                                        Margin="0,0,24,0" />
                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                <Button Style="{StaticResource SecondaryButton}" Content="Reject" Margin="0,0,8,0" Click="RejectPairing_Click" />
-                                <Button Style="{StaticResource PrimaryButton}" Content="Codes match, confirm" Click="ConfirmPairing_Click" />
+                                <Button Style="{StaticResource SecondaryButton}" Content="Reject" Margin="0,0,8,0" Command="{Binding RejectPairingCommand}" />
+                                <Button Style="{StaticResource PrimaryButton}" Content="Codes match, confirm" Command="{Binding ConfirmPairingCommand}" />
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -616,7 +716,7 @@
                                         Style="{StaticResource SecondaryButton}"
                                         Content="Open network settings"
                                         VerticalAlignment="Center"
-                                        Click="OpenNetworkSettings_Click" />
+                                        Command="{Binding OpenNetworkSettingsCommand}" />
                             </Grid>
                         </Border>
                         <Border Style="{StaticResource SoftCard}"
@@ -648,6 +748,7 @@
                                 <Grid Grid.Row="1" Margin="0,10,0,10">
                                     <ListBox x:Name="DevicesList"
                                              ItemsSource="{Binding Devices}"
+                                             SelectedItem="{Binding SelectedDevice}"
                                              Background="Transparent"
                                              BorderThickness="0"
                                              ItemContainerStyle="{StaticResource DeviceItem}"
@@ -707,7 +808,7 @@
                                     <Button Style="{StaticResource PrimaryButton}"
                                             Content="Connect and compare"
                                             HorizontalAlignment="Stretch"
-                                            Click="ConnectButton_Click" />
+                                            Command="{Binding ConnectCommand}" />
                                     <TextBlock Text="Or connect by address" Style="{StaticResource Caption}" Margin="0,16,0,6" />
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -721,7 +822,7 @@
                                                 Style="{StaticResource SecondaryButton}"
                                                 Content="Connect"
                                                 Margin="8,0,0,0"
-                                                Click="ConnectManualButton_Click" />
+                                                Command="{Binding ConnectManualCommand}" />
                                     </Grid>
                                     <TextBlock Text="{Binding LocalAddresses, StringFormat=This PC: {0}}"
                                                Style="{StaticResource Caption}"
@@ -743,7 +844,7 @@
                                             Content="Cancel"
                                             HorizontalAlignment="Left"
                                             Margin="0,6,0,0"
-                                            Click="CancelConnect_Click"
+                                            Command="{Binding CancelConnectCommand}"
                                             Visibility="{Binding IsConnecting, Converter={StaticResource BoolToVis}}" />
                                 </StackPanel>
                             </Grid>
@@ -773,7 +874,7 @@
                                                 Content="Install missing apps..."
                                                 VerticalAlignment="Center"
                                                 IsEnabled="{Binding HasMissing}"
-                                                Click="InstallMissing_Click" />
+                                                Command="{Binding UseMissingCommand}" />
                                     </Grid>
                                     <ListBox Grid.Row="1"
                                              Style="{StaticResource FilterListBox}"
