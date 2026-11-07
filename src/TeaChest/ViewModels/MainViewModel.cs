@@ -80,8 +80,11 @@ public sealed record DetailRow(string Label, string Value, bool IsMono = false);
 
 public sealed class MainViewModel : INotifyPropertyChanged
 {
+    private const string ManifestFilter = "JSON manifest (*.json)|*.json|All files (*.*)|*.*";
+
     private readonly ManifestService _manifestService = new();
     private readonly InstallService _installService = new();
+    private readonly IDialogService _dialogs;
     private CancellationTokenSource? _cts;
     private InstallPlan? _lastPlan;
     private string _searchText = "";
@@ -115,8 +118,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private bool _hasWingetLink;
     private bool _hasInstallFolder;
 
-    public MainViewModel()
+    public MainViewModel(IDialogService? dialogs = null)
     {
+        // Unowned real dialogs if none is given, so older callers that never open one needn't pass it.
+        _dialogs = dialogs ?? new WpfDialogService(null);
         Filters = new ObservableCollection<FilterOption>
         {
             new("All apps", AppFilter.All),
@@ -144,6 +149,14 @@ public sealed class MainViewModel : INotifyPropertyChanged
         OpenStoreCommand = new RelayCommand(() => OpenLink(AppLinks.StoreLink(SelectedApp)));
         OpenWingetCommand = new RelayCommand(() => OpenLink(AppLinks.WingetLink(SelectedApp)));
         OpenFolderCommand = new RelayCommand(() => OpenLink(AppLinks.LocalFolder(SelectedApp)));
+        // These were async void click handlers. A RelayCommand with an async lambda keeps them exactly
+        // that: AsyncRelayCommand would grey each button while its flow runs, even behind its own dialogs.
+        OpenCommand = new RelayCommand(async () => await OpenManifestAsync());
+        LoadCommand = new RelayCommand(async () => await LoadManifestFromPickerAsync());
+        SaveCommand = new RelayCommand(async () => await SaveManifestFromPickerAsync());
+        PreviewCommand = new RelayCommand(async () => await PreviewAsync());
+        InstallCommand = new RelayCommand(async () => await InstallWithConfirmAsync());
+        RetryCommand = new RelayCommand(async () => await RetryWithConfirmAsync());
 
         DefaultManifestPath = Path.Combine(AppContext.BaseDirectory, ManifestService.DefaultFileName);
         VersionText = "v" + (Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0");
@@ -163,6 +176,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public RelayCommand OpenStoreCommand { get; }
     public RelayCommand OpenWingetCommand { get; }
     public RelayCommand OpenFolderCommand { get; }
+    public RelayCommand OpenCommand { get; }
+    public RelayCommand LoadCommand { get; }
+    public RelayCommand SaveCommand { get; }
+    public RelayCommand PreviewCommand { get; }
+    public RelayCommand InstallCommand { get; }
+    public RelayCommand RetryCommand { get; }
 
     public string DefaultManifestPath { get; }
     public string VersionText { get; }
@@ -408,6 +427,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler<AppErrorEventArgs>? Error;
+
+    /// <summary>Raised after Open, so the window can switch to the Collect view.</summary>
+    public event EventHandler? CollectViewRequested;
 
     public async Task ScanAsync()
     {
@@ -694,6 +716,128 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _lastPlan = plan;
         NotifyRetryChanged();
         return await InstallAsync();
+    }
+
+    // ---- Button flows ---------------------------------------------------------------------
+
+    public async Task OpenManifestAsync()
+    {
+        if (PickManifestFile() is { } path)
+        {
+            await LoadManifestAsync(path);
+            CollectViewRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public async Task LoadManifestFromPickerAsync()
+    {
+        if (PickManifestFile() is { } path)
+        {
+            await LoadManifestAsync(path);
+        }
+    }
+
+    public async Task SaveManifestFromPickerAsync()
+    {
+        string initial = ManifestPath.Length > 0 ? ManifestPath : DefaultManifestPath;
+        string? path = _dialogs.PickSaveFile(
+            "Save TeaChest manifest",
+            ManifestFilter,
+            "json",
+            Path.GetFileName(initial),
+            Path.GetDirectoryName(initial) ?? AppContext.BaseDirectory);
+        if (path != null)
+        {
+            await SaveManifestAsync(path);
+        }
+    }
+
+    public async Task PreviewAsync()
+    {
+        if (IsBusy) return;
+        await BuildPlanAsync();
+    }
+
+    public async Task InstallWithConfirmAsync()
+    {
+        if (IsBusy) return;
+        await RunInstallFlowAsync(_dialogs, BuildPlanAsync, InstallAsync);
+    }
+
+    public async Task RetryWithConfirmAsync()
+    {
+        if (IsBusy) return;
+        await RunRetryFlowAsync(_dialogs, RetryCount, RetryFailedAsync);
+    }
+
+    public void ShowPlanItem(PlanItem item)
+        => _dialogs.Show($"{item.Name}\n\n{item.Detail}\n\n{item.Id}", "Plan item", DialogIcon.Information);
+
+    private string? PickManifestFile() => _dialogs.PickOpenFile("Open TeaChest manifest", ManifestFilter);
+
+    /// <summary>Plan, then ask, then install, then show the report. The plan and install steps are passed in so tests can fake them.</summary>
+    internal static async Task RunInstallFlowAsync(
+        IDialogService dialogs,
+        Func<Task<InstallPlan?>> buildPlan,
+        Func<Task<InstallReport?>> install)
+    {
+        InstallPlan? plan = await buildPlan();
+        if (plan == null) return;
+        if (plan.InstallCount == 0)
+        {
+            dialogs.Show(
+                "There is nothing to install automatically. Check the plan for manual entries or skipped apps.",
+                "Nothing to install",
+                DialogIcon.Information);
+            return;
+        }
+
+        if (!ConfirmInstall(dialogs, plan.InstallCount, plan.SkipCount, plan.ManualCount)) return;
+
+        InstallReport? report = await install();
+        if (report == null) return;
+        ShowInstallReport(dialogs, report);
+    }
+
+    internal static async Task RunRetryFlowAsync(IDialogService dialogs, int count, Func<Task<InstallReport?>> retry)
+    {
+        if (count == 0) return;
+
+        // Confirm before the retry plan resets the rows, so declining changes nothing.
+        if (!ConfirmInstall(dialogs, count, 0, 0)) return;
+
+        InstallReport? report = await retry();
+        if (report == null) return;
+        ShowInstallReport(dialogs, report);
+    }
+
+    private static bool ConfirmInstall(IDialogService dialogs, int installCount, int skipCount, int manualCount)
+    {
+        string others = skipCount + manualCount > 0
+            ? $"The plan also contains {skipCount} already-present and {manualCount} manual item(s).\n\n"
+            : "";
+        return dialogs.Confirm(
+            $"Install {installCount} app(s) now?\n\n" +
+            others +
+            "This will change this PC.",
+            "Confirm install",
+            ConfirmButtons.YesNo,
+            DialogIcon.Warning);
+    }
+
+    private static void ShowInstallReport(IDialogService dialogs, InstallReport report)
+    {
+        string message = $"Installed: {report.Installed}\nAlready present: {report.AlreadyInstalled}\nManual: {report.Manual}\nFailed: {report.Failed}";
+        if (report.RebootRequired > 0) message += $"\nInstalled, restart needed: {report.RebootRequired}";
+        if (report.Cancelled) message += $"\nNot attempted (cancelled): {report.NotAttempted}";
+        message += $"\n\nReport: {report.ReportPath}\nLog: {report.LogPath}";
+        if (report.ManualActionsPath.Length > 0) message += $"\nManual actions: {report.ManualActionsPath}";
+        bool warn = report.Failed > 0 || report.Cancelled;
+        string title = report.Cancelled ? "Install cancelled"
+            : report.Failed > 0 ? "Install finished with errors"
+            : report.RebootRequired > 0 ? "Install complete - restart needed"
+            : "Install complete";
+        dialogs.Show(message, title, warn ? DialogIcon.Warning : DialogIcon.Information);
     }
 
     // The row carries its own plan item, so this needs no lookup and no guessing from the name.
