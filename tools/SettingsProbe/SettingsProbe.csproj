@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A throwaway research tool, not part of TeaChest.sln, the app, or CI. It reads the NTFS
+       change journal (and optionally ETW) around a test run, and only ever shows what happened
+       under its own scratch folder. See README.md. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>SettingsProbe</RootNamespace>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="SettingsProbe.Tests" />
+  </ItemGroup>
+
+</Project>
