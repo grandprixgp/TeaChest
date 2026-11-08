@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3A63707E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeaChest.Tests", "tests\TeaChest.Tests\TeaChest.Tests.csproj", "{CBBF5020-86BD-4388-BD85-7ABF24509ADA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TeaChest.Core", "src\TeaChest.Core\TeaChest.Core.csproj", "{E83C8C44-D922-45CB-8CDE-A979AF3C12EE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{CBBF5020-86BD-4388-BD85-7ABF24509ADA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{CBBF5020-86BD-4388-BD85-7ABF24509ADA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{CBBF5020-86BD-4388-BD85-7ABF24509ADA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E83C8C44-D922-45CB-8CDE-A979AF3C12EE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E83C8C44-D922-45CB-8CDE-A979AF3C12EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E83C8C44-D922-45CB-8CDE-A979AF3C12EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E83C8C44-D922-45CB-8CDE-A979AF3C12EE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{7C8B83AF-B34B-4B87-A369-E21BC41A0877} = {46A7BCB1-EF55-41EB-837B-210FE6DB3C05}
 		{CBBF5020-86BD-4388-BD85-7ABF24509ADA} = {3A63707E-D96D-4D88-A6CD-8CA50F20355C}
+		{E83C8C44-D922-45CB-8CDE-A979AF3C12EE} = {46A7BCB1-EF55-41EB-837B-210FE6DB3C05}
 	EndGlobalSection
 EndGlobal
