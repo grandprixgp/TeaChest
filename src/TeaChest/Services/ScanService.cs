@@ -16,7 +16,7 @@ public sealed class ScanService
     private readonly AppxInventoryService _appx = new();
     private readonly WingetService _winget = new();
     // Later sources (VS Code extensions, Scoop, npm and friends) go here.
-    private readonly IReadOnlyList<IExtraSource> _extraSources = Array.Empty<IExtraSource>();
+    private readonly IReadOnlyList<IExtraSource> _extraSources = new IExtraSource[] { new VsCodeSource(), new ScoopSource(), new ChocolateySource() };
     private readonly SelectionOptions _options;
     private readonly NameCache _names;
 
