@@ -83,7 +83,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private const string ManifestFilter = "JSON manifest (*.json)|*.json|All files (*.*)|*.*";
 
     private readonly ManifestService _manifestService = new();
-    private readonly InstallService _installService = new();
+    private readonly InstallService _installService = new(new WingetInstallBackend());
     private readonly IDialogService _dialogs;
     private CancellationTokenSource? _cts;
     private InstallPlan? _lastPlan;

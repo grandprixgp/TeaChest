@@ -293,7 +293,7 @@ public class InventoryDiffTests
     [Fact]
     public void SplitsIntoMissingAlreadyAndOnlyHere()
     {
-        var index = InstalledIndex.Build(
+        var index = WindowsInstalledIndex.Build(
             Array.Empty<AppItem>(),
             Array.Empty<AppItem>(),
             new WingetInventory(new[] { new WingetRow("Git", "Git.Git", "2", "winget", false, false, false, false) }, null));

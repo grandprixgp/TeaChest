@@ -14,7 +14,7 @@ public class InstalledIndexTests
     [Fact]
     public void OlderPythonDoesNotCountAsNewerPython()
     {
-        var index = InstalledIndex.Build(
+        var index = WindowsInstalledIndex.Build(
             new[] { new AppItem { Name = "Python 3.11.9 (64-bit)" } },
             Array.Empty<AppItem>(),
             Inventory(("Python 3.11.9 (64-bit)", "Python.Python.3.11")));
@@ -26,7 +26,7 @@ public class InstalledIndexTests
     [Fact]
     public void WithWingetInventoryIdsDecide()
     {
-        var index = InstalledIndex.Build(
+        var index = WindowsInstalledIndex.Build(
             new[] { new AppItem { Name = "Google Chrome" } },
             Array.Empty<AppItem>(),
             Inventory(("Git", "Git.Git")));
@@ -38,7 +38,7 @@ public class InstalledIndexTests
     [Fact]
     public void WithoutWingetFallsBackToVersionSensitiveNames()
     {
-        var index = InstalledIndex.Build(
+        var index = WindowsInstalledIndex.Build(
             new[] { new AppItem { Name = "Google Chrome" }, new AppItem { Name = "Python 3.11.9" } },
             Array.Empty<AppItem>(),
             new WingetInventory(Array.Empty<WingetRow>(), "winget not found"));
@@ -54,7 +54,7 @@ public class InstalledIndexTests
             new[] { new WingetRow("Git", "Git.Git", "2", "winget", false, false, false, false) },
             null,
             new[] { new ExportedPackage("Microsoft.VisualStudioCode.Insiders", "1.96", "winget") });
-        var index = InstalledIndex.Build(Array.Empty<AppItem>(), Array.Empty<AppItem>(), inventory);
+        var index = WindowsInstalledIndex.Build(Array.Empty<AppItem>(), Array.Empty<AppItem>(), inventory);
 
         Assert.True(index.Contains(Winget("VS Code Insiders", "Microsoft.VisualStudioCode.Insiders")));
     }
