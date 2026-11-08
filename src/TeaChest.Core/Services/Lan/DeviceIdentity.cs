@@ -7,7 +7,8 @@ namespace TeaChest.Services.Lan;
 
 /// <summary>
 /// This PC's long-lived TLS certificate. Peers remember it by fingerprint, so it must stay the
-/// same between runs. The PFX is encrypted for the current Windows user with DPAPI.
+/// same between runs. The PFX is kept by an <see cref="IDeviceKeyProtector"/>, which on Windows
+/// encrypts it for the current user with DPAPI.
 /// </summary>
 public sealed class DeviceIdentity : IDisposable
 {
@@ -27,18 +28,18 @@ public sealed class DeviceIdentity : IDisposable
     public static string DefaultDirectory
         => AppPaths.DataDirectory;
 
-    public static DeviceIdentity LoadOrCreate(string? directory = null, string? name = null)
+    public static DeviceIdentity LoadOrCreate(IDeviceKeyProtector protector, string? directory = null, string? name = null)
     {
         directory ??= DefaultDirectory;
         name ??= Environment.MachineName;
         Directory.CreateDirectory(directory);
-        string path = Path.Combine(directory, "device.pfx.dpapi");
+        string path = Path.Combine(directory, protector.FileName);
 
         if (File.Exists(path))
         {
             try
             {
-                byte[] pfx = ProtectedData.Unprotect(File.ReadAllBytes(path), null, DataProtectionScope.CurrentUser);
+                byte[] pfx = protector.Unprotect(File.ReadAllBytes(path));
                 return new DeviceIdentity(LoadPfx(pfx), name);
             }
             catch (CryptographicException)
@@ -48,7 +49,7 @@ public sealed class DeviceIdentity : IDisposable
         }
 
         byte[] created = CreatePfx(name);
-        File.WriteAllBytes(path, ProtectedData.Protect(created, null, DataProtectionScope.CurrentUser));
+        File.WriteAllBytes(path, protector.Protect(created));
         return new DeviceIdentity(LoadPfx(created), name);
     }
 

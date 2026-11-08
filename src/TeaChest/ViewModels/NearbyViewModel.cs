@@ -527,7 +527,7 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
             ConnectStatus = $"Got {result.Inventory.Apps.Count} apps from {result.Device.Name}. Comparing with this PC...";
             List<AppItem> remote = ManifestService.ToItems(result.Inventory);
             foreach (AppItem item in remote) AppClassifier.ApplyClassification(item);
-            InstalledIndex index = await InstalledIndex.BuildAsync(_connectCts.Token);
+            InstalledIndex index = await WindowsInstalledIndex.BuildAsync(_connectCts.Token);
             List<AppItem>? local = _main.Apps.Count > 0 ? _main.Apps.ToList() : null;
             InventoryDiffResult diff = InventoryDiff.Compare(remote, index, local);
 
@@ -618,7 +618,7 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
     private void EnsureIdentity()
     {
         _known ??= KnownPeers.Load();
-        _identity ??= DeviceIdentity.LoadOrCreate();
+        _identity ??= DeviceIdentity.LoadOrCreate(new DpapiKeyProtector());
     }
 
     private void RefreshKnownFlags()

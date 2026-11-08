@@ -30,4 +30,8 @@
     <InternalsVisibleTo Include="TeaChest.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\TeaChest.Core\TeaChest.Core.csproj" />
+  </ItemGroup>
+
 </Project>

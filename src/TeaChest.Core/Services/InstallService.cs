@@ -61,19 +61,20 @@ public sealed class InstallService
         WriteIndented = true
     };
 
-    private readonly WingetService _winget = new();
-    private readonly Func<AppItem, InstallOptions, Action<string>?, CancellationToken, Task<ProcessResult>> _runInstall;
+    private readonly IInstallBackend _backend;
 
-    public InstallService()
-        : this(null)
+    public InstallService(IInstallBackend backend)
     {
+        _backend = backend;
     }
 
-    /// <summary>Passing a runner lets tests drive each app's outcome without starting WinGet.</summary>
-    public InstallService(Func<AppItem, InstallOptions, Action<string>?, CancellationToken, Task<ProcessResult>>? runInstall)
+    /// <summary>
+    /// Passing a runner lets tests drive each app's outcome without starting a package manager.
+    /// Only for InstallAsync: the plan this builds sees an empty installed index.
+    /// </summary>
+    internal InstallService(Func<AppItem, InstallOptions, Action<string>?, CancellationToken, Task<ProcessResult>> runInstall)
+        : this(new RunnerOnlyBackend(runInstall))
     {
-        _runInstall = runInstall ?? ((app, options, onLine, token) => _winget.InstallAsync(
-            app, options.Force, options.Interactive, options.MatchScope, options.PinVersions, token, onLine));
     }
 
     public async Task<InstallPlan> BuildPlanAsync(
@@ -85,7 +86,7 @@ public sealed class InstallService
         InstalledIndex? installed = null;
         try
         {
-            installed = await InstalledIndex.BuildAsync(cancellationToken).ConfigureAwait(false);
+            installed = await _backend.BuildInstalledIndexAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -199,7 +200,7 @@ public sealed class InstallService
                     Item = item
                 });
 
-                ProcessResult result = await _runInstall(
+                ProcessResult result = await _backend.InstallAsync(
                     app,
                     options,
                     line =>
@@ -404,4 +405,18 @@ public sealed class InstallService
 
     private static string Tail(string value, int max)
         => value.Length <= max ? value : value[^max..];
+
+    private sealed class RunnerOnlyBackend : IInstallBackend
+    {
+        private readonly Func<AppItem, InstallOptions, Action<string>?, CancellationToken, Task<ProcessResult>> _runInstall;
+
+        public RunnerOnlyBackend(Func<AppItem, InstallOptions, Action<string>?, CancellationToken, Task<ProcessResult>> runInstall)
+            => _runInstall = runInstall;
+
+        public Task<InstalledIndex> BuildInstalledIndexAsync(CancellationToken cancellationToken)
+            => Task.FromResult(new InstalledIndex());
+
+        public Task<ProcessResult> InstallAsync(AppItem app, InstallOptions options, Action<string>? onLine, CancellationToken cancellationToken)
+            => _runInstall(app, options, onLine, cancellationToken);
+    }
 }

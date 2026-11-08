@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The code that doesn't need Windows: manifests, classification, the install plan, and
+       Nearby. Plain net8.0, so it builds and tests on Linux too. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>TeaChest.Core</AssemblyName>
+    <RootNamespace>TeaChest</RootNamespace>
+    <Platforms>AnyCPU</Platforms>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TeaChest" />
+    <InternalsVisibleTo Include="TeaChest.Tests" />
+    <InternalsVisibleTo Include="TeaChest.Core.Tests" />
+  </ItemGroup>
+
+</Project>
