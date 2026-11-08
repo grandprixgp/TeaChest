@@ -618,7 +618,7 @@ public sealed class NearbyViewModel : INotifyPropertyChanged, IInventoryProvider
     private void EnsureIdentity()
     {
         _known ??= KnownPeers.Load();
-        _identity ??= DeviceIdentity.LoadOrCreate();
+        _identity ??= DeviceIdentity.LoadOrCreate(new DpapiKeyProtector());
     }
 
     private void RefreshKnownFlags()
