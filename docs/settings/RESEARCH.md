@@ -15,7 +15,7 @@ TeaChest moves apps today, not their settings. Owner decision 1 ("Settings over 
 | Static heuristics (known folders, vendor names, AppX package folders) | No | Mostly, by name matching | The long tail | **Second layer**, shown as "probably" |
 | Outside catalogues (Ludusavi, Scoop, Mackup, USMT) | No | Yes | Seeding and checking recipes | Use as **references**; ship only what the licence allows |
 | `FileSystemWatcher` / `ReadDirectoryChangesW` while an app runs | No | Only by timing | A per-user "learn mode" | **Best fit for learn mode** |
-| USN change journal | Yes | No (no process ID) | What changed on the volume recently | **Useful, but not for attribution**. Optional, elevated |
+| USN change journal | Yes (an unprivileged variant returns records without names) | No (no process ID) | What changed on the volume in the last hours | **Useful, but not for attribution**, and too short for history. Optional |
 | ETW `Microsoft-Windows-Kernel-File` | Yes | **Yes** (process ID per event) | Exact "this process wrote these files" | **Most precise**, but admin, heavy, and easy to leave running |
 | Process Monitor and other minifilter tools | Yes, plus a driver | Yes | Comparison only | **Not for TeaChest** |
 
@@ -70,15 +70,21 @@ The journal is a circular log with a target size. When it grows past `MaximumSiz
 
 - Reading from a USN older than `FirstUsn` fails with `ERROR_JOURNAL_ENTRY_DELETED`. Code must treat that as "history lost, start again", not as an error to retry.
 - If the journal is deleted and re-created (by an admin, or by some disk tools), its ID changes, and reading with the old ID fails. Records written in between are simply gone.
-- Microsoft's own advice for backup software is to raise the default size, which shows how small it is for long histories. On the PC I tested, the probe printed the size: see "Results on a real PC" in `SPEC.md`.
+- Microsoft's own advice for backup software is to raise the default size, which shows how small it is for long histories.
+- **Measured on the development PC (Windows 11, build 26300):** `MaximumSize` 32 MB (`0x2000000`), `AllocationDelta` 8 MB (`0x800000`), about 33 to 40 MB of records held, and **the oldest record was 0.8 hours old**. That PC is busier than most (builds, agents, sync), but even a quiet PC would only get to days.
 
-**What that means for TeaChest:** the journal holds hours to days of a busy PC's history, not months. "Which folders do you use most" over a long period would need TeaChest to read the journal regularly and keep its own summary, which means a background task or service. That's a lasting system change, so it's out unless the owner decides otherwise. Reading the journal **while a learn session runs**, though, is easily inside its window.
+**What that means for TeaChest:** the journal holds hours to days of a PC's history, not months. "Which folders do you use most" over a long period would need TeaChest to read the journal regularly and keep its own summary, which means a background task or service. That's a lasting system change, so it's out unless the owner decides otherwise. Reading the journal **while a learn session runs**, though, is easily inside its window.
 
 ### Needing admin
 
 Microsoft's docs say every change journal operation through these control codes needs membership of Administrators. In practice, opening `\\.\C:` for reading needs an elevated token.
 
-There is also **`FSCTL_READ_UNPRIVILEGED_USN_JOURNAL`** (function 234, `FILE_ANY_ACCESS`), which appears in the SDK headers and in wrappers such as Vanara, but has no page on Microsoft Learn. **Untested**: I haven't confirmed what an unelevated caller gets back from it, or which Windows builds have it. If it works unelevated with useful records, it would change the admin story, so it's worth a small follow-up test in a non-admin session.
+There is also **`FSCTL_READ_UNPRIVILEGED_USN_JOURNAL`** (function 234, `FILE_ANY_ACCESS`), which appears in the SDK headers and in wrappers such as Vanara, but has no page on Microsoft Learn. The prototype tried it, from an elevated process:
+
+- It returned **the same records** as the normal read (same count, same file IDs, parents, reasons and times), **but every file name was blank**, in all 181 records of the window.
+- It worked on the volume handle and also on **a handle to an ordinary folder opened only to read attributes**, which is the kind of handle an unelevated process can open.
+
+So the unprivileged read looks designed for exactly this: a non-admin caller learns *that* things changed, and by file ID *which* things, but has to resolve names itself, which it can only do for files it's allowed to open (with `OpenFileById` on its own handle). **Untested from a standard-user token**: my process was elevated, so I can't yet say an unelevated TeaChest gets the same result. If it does, an unelevated learn mode could use the journal after all, watching IDs and resolving only the ones under the folders it cares about. That's worth one more test in a non-admin session before anyone builds on it.
 
 **How this fits TeaChest:** the app runs unelevated and has one elevated helper path today (`TeaChest.exe --configure-firewall`, which adds the firewall rule and exits). A journal reader would be a second helper of the same shape, and the shape matters for privacy: the elevated process sees the **whole volume's** activity, every user's. So it must take the folders of interest as input, filter inside itself, and hand back only the records under those folders, never a raw dump. It should also refuse to run unless the user asked for a learn session, and print nothing else.
 
@@ -102,7 +108,7 @@ The manifest-based kernel file provider, GUID `{EDD08927-9CC4-4E65-B970-C2560FB5
 
 - **Needs:** an elevated token, membership of Performance Log Users, or a service account, to start a session. Since Windows 10 1703 a low-privilege process can start a *private* in-process session, but that only sees providers in its own process, which doesn't help here.
 - **Attribution:** exact, by process ID. But it misses work done on an app's behalf by another process: services, brokers, updaters, child processes with new IDs, and Store app settings written by system components. Following child processes needs process-start events too.
-- **Cost:** heavy. A real-time session with the I/O keywords on a busy PC delivers thousands of events a second. `EnableTraceEx2` can filter by process ID (`EVENT_FILTER_TYPE_PID`, Windows 8.1 and later, up to 8 IDs), which cuts the volume a lot if the provider honours it. **Untested** whether this provider honours it, so the prototype filters in its own code as well.
+- **Cost:** heavy. A real-time session with the I/O keywords on a busy PC delivers thousands of events a second. `EnableTraceEx2` can filter by process ID (`EVENT_FILTER_TYPE_PID`, Windows 8.1 and later, up to 8 IDs). **Tested: this provider ignores it.** `EnableTraceEx2` accepted the filter without complaint, and the session still delivered 10,000 to 33,000 events from other processes during a half-second test, so all the filtering has to happen in the consumer, and the consumer sees every process's file names in memory while it does.
 - **Reliability:** events can be dropped if the consumer falls behind (the session reports lost events). Paths come back in NT device form and need mapping to drive letters.
 - **The trap:** **an ETW session outlives the process that started it.** If the tool crashes, the session keeps running, and collecting, until someone stops it or the PC restarts, and only 64 sessions can exist at once. Any use in TeaChest needs a fixed session name, a stop in a `finally`, a stop of any leftover session with that name before starting, and a check afterwards.
 - **Privacy risk:** high while it runs, the same as the journal but live and with process IDs. Filter in-process, keep nothing outside the target.
@@ -225,4 +231,6 @@ Secret detection (in `SPEC.md`) adds a content check on top of these name rules,
 
 Checked directly: Microsoft Learn pages for `FSCTL_READ_USN_JOURNAL`, `FSCTL_ENUM_USN_DATA`, `USN_RECORD_V2`, `USN_RECORD_V4`, `USN_JOURNAL_DATA_V0`/`V1`, `READ_USN_JOURNAL_DATA_V1`, "Using the change journal identifier", "Creating, modifying, and deleting a change journal", "Walking a buffer of change journal records", `fsutil usn`, MS-FSA appendix A, "Controlling event tracing sessions", "Configuring and starting a private logger session", the `FileIo` class, USMT's "What does USMT migrate" and "Migrate application settings", UE-V 2.1's "Working with custom templates and the generator", and Electron's `app.getPath` docs. The `Microsoft-Windows-Kernel-File` manifest as extracted in `repnz/etw-providers-docs`. Licences from each project's GitHub page or PyPI entry, and PCGamingWiki's copyright page.
 
-Leads not verified: the behaviour of `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` without elevation, PortableApps.com launcher licences, and whether `Microsoft-Windows-Kernel-File` honours `EVENT_FILTER_TYPE_PID`.
+Checked with the prototype (`tools/SettingsProbe`) on the development PC: the journal's size and reach, attribution by time and place, the unprivileged read blanking names, and the ETW PID filter being ignored.
+
+Leads not verified: `FSCTL_READ_UNPRIVILEGED_USN_JOURNAL` from a standard-user token, and PortableApps.com launcher licences.
