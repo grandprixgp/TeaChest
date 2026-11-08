@@ -393,10 +393,20 @@ Cards in the same format as `TEACHEST-SPECS.md`. The "Rules for every task" from
 **Moved to Core as is:** `Models/*` (all six files), `AppPaths`, `ManifestService`, `ManifestSanitizer`, `WingetConfigurationWriter`, `ProcessRunner`, and in `Lan`: `LanProtocol`, `Discovery`, `Pairing`, `PairingThrottle`, `PeerClient`, `PeerServer`, `InventoryDiff`.
 
 **Moved with a seam:**
-- `InstallService` takes an `IInstallBackend` (the installed index, and installing one app). `WingetInstallBackend` in the WPF project does what the default constructor did before: `WindowsInstalledIndex.BuildAsync` and `WingetService.InstallAsync`. The test constructor that takes just an install function is kept, now `internal`. `Classify` (the WinGet exit codes) stays in `InstallService` for now; TL-09 moves it behind the backend.
+- `InstallService` takes an `IInstallBackend` (the installed index, and installing one app). `WingetInstallBackend` in the WPF project does what the default constructor did before: `WindowsInstalledIndex.BuildAsync` and `WingetService.InstallAsync`. The test constructor that takes just an install function is kept, now `internal`; a plan built through it sees an empty installed index, and no test builds one that way. `Classify` (the WinGet exit codes) stays in `InstallService` for now; TL-09 moves it behind the backend.
 - `InstalledIndex` keeps its sets and `Contains`. Building one from the registry, AppX and WinGet moved to `WindowsInstalledIndex` in the WPF project, unchanged.
 - `DeviceIdentity.LoadOrCreate` takes an `IDeviceKeyProtector`. `DpapiKeyProtector` in the WPF project does exactly what the inline DPAPI calls did, with the same `device.pfx.dpapi` file name, so existing pairings keep working.
 
 **Stayed in the WPF project:** everything in the "Windows only" rows above, plus `ScanService`, `NameCache`, `ExtraSources`, and the view models, which have their own cards.
 
-**Tests.** The Core tests live in `tests/TeaChest.Core.Tests` on plain `net8.0`. See the commit log and the report for which test classes moved.
+**Tests.** The Core tests live in `tests/TeaChest.Core.Tests` on plain `net8.0`, with the same xUnit packages and versions as `TeaChest.Tests`, and the same `TeaChest.Tests` namespace.
+- Whole files moved: `AppPathsTests`, `ClassifierTests`, `ManifestDiffTests`, `ManifestTests`, `PairingThrottleTests`, `TextUtilTests`, `WingetConfigurationTests`, and `LanTests`.
+- `LanTests.cs` held two classes that need Windows. `NetworkProfileTests` and `InventoryDiffTests` (which builds its index from WinGet rows) went to a new `tests/TeaChest.Tests/LanWindowsTests.cs`, unchanged.
+- `InstallTests.cs` held `InstallClassificationTests`, which only needs Core. It moved to `tests/TeaChest.Core.Tests/InstallClassificationTests.cs`, unchanged. `InstalledIndexTests` stayed.
+- The only edits to existing tests are `InstalledIndex.Build(` becoming `WindowsInstalledIndex.Build(` in five places.
+- New: `DeviceIdentityTests` and `InstallBackendTests` in Core, `DpapiKeyProtectorTests` on Windows, for the two new seams.
+- Count: 511 before; 164 in Core and 355 on Windows after, 519 in all. Nothing deleted or skipped.
+
+**CI.** `build.yml` has a new `core-linux` job on `ubuntu-latest` that restores, builds (with `-p:EnableWindowsTargeting=false`) and tests `TeaChest.Core.Tests`, which builds Core with it. The Windows job is unchanged and now runs both test projects through the solution. The Linux job hasn't run yet.
+
+**Side effect.** `build.ps1` zips the whole publish folder, so release zips gain a 40 KB `TeaChest.Core.pdb` next to the existing `TeaChest.pdb`. The exe is still a single file with Core inside it.
