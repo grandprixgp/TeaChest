@@ -1,7 +1,7 @@
 # TeaChest: carrying app settings
 
 **Written:** 8 Nov 2026, on `research/settings-discovery` (from `main` at `f9c5fab`)
-**Status:** draft. Every choice marked **"Proposed, the user decides"** is a proposal and isn't settled until I say so. The research behind this is in `RESEARCH.md` in this folder, and the prototype is `tools/SettingsProbe`.
+**Status:** draft. Every choice marked **"Proposed, the user decides"** is a proposal and isn't settled until I say so. Decisions S1 to S11 in section 6 were settled on 9 Nov 2026, each as recommended. The approach (section 1), the recipe format and the Nearby design are still proposals. The research behind this is in `RESEARCH.md` in this folder, and the prototype is `tools/SettingsProbe`.
 
 TeaChest moves apps, not their settings. Owner decision 1 in the spec sheet ("Settings over Nearby") needs a per-app recipe of paths, opt-in per item, and a protocol change. This file covers how TeaChest finds those paths, what a recipe looks like, how it looks in the app, the security design, and a staged plan as cards.
 
@@ -130,7 +130,7 @@ Kept 37 under the scratch folder; skipped 144 elsewhere on the drive (not shown,
 
 **Rules the loader enforces:** a root must start with a known token; no `..`, absolute paths, drive letters, UNC paths or environment variables anywhere; globs can't escape the root; `id`s are `[a-z0-9-]+`. A recipe that breaks a rule is dropped with a warning, the same way `ManifestSanitizer` treats bad manifest entries. The global "never carry" rules from `RESEARCH.md` section 5 apply on top, so a recipe saying `copy` on `**/Cookies` is overruled.
 
-**Merging** (combining old and new files key by key) is tempting for `.gitconfig` and JSON settings, but it's where subtle breakage lives. v1 has no merge action: `copy` keeps a backup of what it replaced, and `copy-if-missing` covers the "don't clobber" case. **Proposed, the user decides** (decision S2).
+**Merging** (combining old and new files key by key) is tempting for `.gitconfig` and JSON settings, but it's where subtle breakage lives. v1 has no merge action: `copy` keeps a backup of what it replaced, and `copy-if-missing` covers the "don't clobber" case. **Decided by the user on 9 Nov 2026** (decision S2).
 
 ### Examples
 
@@ -153,7 +153,7 @@ Paths are as the apps document them, and each was checked against public docs, b
 
 ## 4. In the app
 
-**Proposed, the user decides** (decision S1 covers whether settings are in scope at all, and in which release).
+**Decided by the user on 9 Nov 2026** (decision S1 covers whether settings are in scope at all, and in which release).
 
 ### On the old PC (Collect)
 
@@ -212,7 +212,7 @@ The spec sheet forbids changing `LanProtocol.Version`, because 1.3 has to keep t
 | **A. Negotiate a capability** (recommended) | Add an optional `capabilities` list to the `hello` message (`["settings/1"]`). Old builds ignore unknown JSON fields, so 1.2 peers carry on as now. New message types (`get-settings-offer`, `settings-offer`, `get-settings-item`, `settings-chunk`) are only sent after both hellos list the capability | Small. Keeps 1.2 working. `WireCompatibilityTests` stays green, and gets a new test that a 1.2-shaped hello still works |
 | **B. Bump the version to 2** | Version 2 peers refuse version 1 | Breaks 1.2 compatibility, which is one of 1.3's headline promises |
 
-**Proposed, the user decides** (decision S4). I'd take A.
+**Decided by the user on 9 Nov 2026** (decision S4): A.
 
 ### On the receiving side
 
@@ -236,15 +236,15 @@ On the **sharing side**, before anything goes into an offer. Three layers, all l
    - JSON, INI or YAML keys named like a secret (`password`, `passwd`, `secret`, `token`, `apikey`, `api_key`, `auth`, `key`, `streamkey`) with a non-empty string value longer than 8 characters.
 3. **Machine-bound data:** a DPAPI blob header (`01000000D08C9DDF0115D1118C7A00C04FC297EB`, raw or base64 as `AQAAANCMnd8BFdERjHoAwE/Cl+s`) anywhere in the file means it won't decrypt on another PC, and it's often a password.
 
-A flagged file shows as **"Looks like it holds a password or key"**. In v1 it can't be offered at all (**Proposed, the user decides**, decision S9). The check is a safety net, not a guarantee, and the UI shouldn't claim otherwise.
+A flagged file shows as **"Looks like it holds a password or key"**. In v1 it can't be offered at all (**Decided by the user on 9 Nov 2026**, decision S9). The check is a safety net, not a guarantee, and the UI shouldn't claim otherwise.
 
 ---
 
 ## 6. Decisions
 
-Each one is **Proposed, the user decides**.
+The user accepted every recommendation below as written on 9 Nov 2026, so the last column is now the decision.
 
-| # | Decision | Options | My recommendation |
+| # | Decision | Options | Decided (as recommended) |
 |---|---|---|---|
 | S1 | Is carrying settings in scope, and when? | Next minor release / later / never | Ship the read-only **preview** first (TS-01 to TS-05): it's useful on its own ("these are the settings you'd lose") and risks nothing. Carrying comes after |
 | S2 | What happens when the new PC already has the file? | Replace with backup / skip / merge | **Replace with a backup**, plus `copy-if-missing` per recipe. No merging in v1 |
